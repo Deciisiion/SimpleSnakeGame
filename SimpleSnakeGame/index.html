@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Willkommen zu Benito's Snake :D</h1>
+    <h2>Viel Spaß und viel Erfolg!</h2>
+    <h3>Anzahl der gegessenen gelben Würfel:</h3>
+    <p id="scoreDisplay">0</p> 
+
+    <div id="highscoreInputContainer" style="display: none; margin-top: 20px;">
+        <label for="playerNameInput">🎉 Neuer Highscore! Gib deinen Namen ein:</label><br>
+        <input type="text" id="playerNameInput" maxlength="15" placeholder="Dein Name">
+        <button id="saveHighscoreNameBtn">Speichern</button>
+    </div>
+
+    <h4>Highscore: <span id="highscoreDisplay">0</span> (von <span id="highscorePlayerName">Unbekannt</span>)</h4>
+    <canvas id="canvas" width="480" height="480"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const rows = 20, cols = 20;
+        const cellWidth = canvas.width / cols;
+        const cellHeight = canvas.height / rows;
+
+        let snake = [{ x: 19, y: 3 }];
+        let food;
+        let direction = 'LEFT';
+        let foodCollected = false;
+        let score = 0;
+        let highscore = 0;
+        let highscorePlayerName = "Unbekannt";
+        let gameisPaused = false;
+        let gameInterval;
+
+        const HIGHSCORE_STORAGE_KEY = 'snakeHighscore';
+        const HIGHSCORE_PLAYER_NAME_STORAGE_KEY = 'snakeHighscorePlayerName';
+
+        const scoreDisplayElement = document.getElementById('scoreDisplay');
+        const highscoreDisplayElement = document.getElementById('highscoreDisplay');
+        const highscorePlayerNameElement = document.getElementById('highscorePlayerName');
+        const highscoreInputContainer = document.getElementById('highscoreInputContainer');
+        const playerNameInput = document.getElementById('playerNameInput');
+        const saveHighscoreNameBtn = document.getElementById('saveHighscoreNameBtn');
+
+        function loadHighscore() {
+            const storedHighscore = parseInt(localStorage.getItem(HIGHSCORE_STORAGE_KEY), 10);
+            if (!isNaN(storedHighscore)) highscore = storedHighscore;
+
+            highscoreDisplayElement.textContent = highscore;
+
+            const storedName = localStorage.getItem(HIGHSCORE_PLAYER_NAME_STORAGE_KEY);
+            if (storedName) highscorePlayerName = storedName;
+
+            highscorePlayerNameElement.textContent = highscorePlayerName;
+        }
+
+        function resetGame() {
+            snake = [{ x: 19, y: 3 }];
+            direction = 'LEFT';
+            score = 0;
+            foodCollected = false;
+            gameisPaused = false;
+            scoreDisplayElement.textContent = "0";
+            highscoreInputContainer.style.display = 'none';
+            placeFood();
+            draw();
+        }
+
+        function startGameLoop() {
+            gameInterval = setInterval(gameLoop, 200);
+        }
+
+        function stopGameLoop() {
+            clearInterval(gameInterval);
+        }
+
+        function placeFood() {
+            food = {
+                x: Math.floor(Math.random() * cols),
+                y: Math.floor(Math.random() * rows)
+            };
+        }
+
+        function draw() {
+            if (gameisPaused) return;
+
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'white';
+            snake.forEach(part => add(part.x, part.y));
+
+            ctx.fillStyle = 'yellow';
+            add(food.x, food.y);
+
+            requestAnimationFrame(draw);
+        }
+
+        function add(x, y) {
+            ctx.fillRect(x * cellWidth, y * cellHeight, cellWidth - 1, cellHeight - 1);
+        }
+
+        function shiftSnake() {
+            for (let i = snake.length - 1; i > 0; i--) {
+                snake[i].x = snake[i - 1].x;
+                snake[i].y = snake[i - 1].y;
+            }
+        }
+
+        function updateScore() {
+            score++;
+            scoreDisplayElement.textContent = score;
+        }
+
+        function testGameover() {
+            const head = snake[0];
+            const tail = snake.slice(1);
+            const collision = tail.some(part => part.x === head.x && part.y === head.y);
+
+            if (
+                head.x < 0 || head.x >= cols ||
+                head.y < 0 || head.y >= rows ||
+                collision
+            ) {
+                gameisPaused = true;
+                stopGameLoop();
+
+                if (score > highscore) {
+                    highscore = score;
+                    highscoreDisplayElement.textContent = highscore;
+
+                    localStorage.setItem(HIGHSCORE_STORAGE_KEY, highscore);
+
+                    highscoreInputContainer.style.display = 'block';
+                    playerNameInput.value = highscorePlayerName || "";
+                    playerNameInput.focus();
+                } else {
+                    resetGame();
+                    startGameLoop();
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (gameisPaused) return;
+
+            testGameover();
+
+            if (foodCollected) {
+                snake = [{ x: snake[0].x, y: snake[0].y }, ...snake];
+                foodCollected = false;
+            }
+
+            shiftSnake();
+
+            if (direction === 'LEFT') snake[0].x--;
+            if (direction === 'RIGHT') snake[0].x++;
+            if (direction === 'UP') snake[0].y--;
+            if (direction === 'DOWN') snake[0].y++;
+
+            if (snake[0].x === food.x && snake[0].y === food.y) {
+                foodCollected = true;
+                placeFood();
+                updateScore();
+            }
+        }
+
+        function keyDown(e) {
+            if (gameisPaused) return;
+
+            if ([37, 38, 39, 40].includes(e.keyCode)) {
+                e.preventDefault();
+            }
+
+            if (e.keyCode === 37 && direction !== 'RIGHT') direction = 'LEFT';
+            if (e.keyCode === 38 && direction !== 'DOWN') direction = 'UP';
+            if (e.keyCode === 39 && direction !== 'LEFT') direction = 'RIGHT';
+            if (e.keyCode === 40 && direction !== 'UP') direction = 'DOWN';
+        }
+
+        saveHighscoreNameBtn.addEventListener('click', () => {
+            let enteredName = playerNameInput.value.trim();
+            if (enteredName === "") enteredName = "Unbekannt";
+
+            highscorePlayerName = enteredName;
+            highscorePlayerNameElement.textContent = highscorePlayerName;
+            localStorage.setItem(HIGHSCORE_PLAYER_NAME_STORAGE_KEY, highscorePlayerName);
+
+            resetGame();
+            startGameLoop();
+        });
+
+        // Initialisierung
+        loadHighscore();
+        placeFood();
+        startGameLoop();
+        draw();
+        document.addEventListener('keydown', keyDown);
+    </script>
+</body>
+</html>
